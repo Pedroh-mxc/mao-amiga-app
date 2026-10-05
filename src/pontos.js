@@ -1,0 +1,1 @@
+export const PONTOS = ['Ponto Central', 'Ponto Norte', 'Ponto Sul'];
