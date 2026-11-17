@@ -1,6 +1,6 @@
 // Troque pelo IP do computador que roda a API (comando ipconfig, campo IPv4).
 // No celular NÃO use localhost: ele apontaria para o próprio celular.
-export const API_URL = 'http://192.168.0.10:8080/api/v1';
+export const API_URL = 'http://192.168.1.191:8080/api/v1';
 
 const TEMPO_LIMITE_MS = 8000;
 
