@@ -1,0 +1,15 @@
+br\com\maoamiga\api\controller\PontoController.class
+br\com\maoamiga\api\config\DataLoader.class
+br\com\maoamiga\api\entity\Ponto.class
+br\com\maoamiga\api\dto\DoacaoRequestDTO.class
+br\com\maoamiga\api\repository\PontoRepository.class
+br\com\maoamiga\api\entity\Doacao.class
+br\com\maoamiga\api\controller\DoacaoController.class
+br\com\maoamiga\api\dto\PontoResponseDTO.class
+br\com\maoamiga\api\repository\DoacaoRepository.class
+br\com\maoamiga\api\dto\DoacaoResponseDTO.class
+br\com\maoamiga\api\config\GlobalExceptionHandler.class
+br\com\maoamiga\api\ApiApplication.class
+br\com\maoamiga\api\dto\PontoRequestDTO.class
+br\com\maoamiga\api\service\DoacaoService.class
+br\com\maoamiga\api\service\PontoService.class
