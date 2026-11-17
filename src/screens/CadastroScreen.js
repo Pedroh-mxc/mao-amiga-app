@@ -1,20 +1,42 @@
-import React, { useState, useLayoutEffect } from 'react';
-import { Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-         KeyboardAvoidingView, Platform, View } from 'react-native';
-import { PONTOS } from '../pontos';
-import { salvarDoacao, atualizarDoacao } from '../doacoesStorage';
+import React, { useState, useEffect, useCallback, useLayoutEffect } from 'react';
+import { Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, View, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { listar as listarPontos } from '../services/pontosService';
+import { cadastrar, editar } from '../services/doacoesService';
+import { mensagemDeErro } from '../services/api';
 
 export default function CadastroScreen({ route, navigation }) {
-  const doacaoEdicao = route.params?.doacao; // undefined = cadastro novo
+  const doacaoEdicao = route.params?.doacao; // vazio = cadastro novo
 
   const [tipoItem, setTipoItem] = useState(doacaoEdicao?.tipoItem ?? '');
   const [quantidade, setQuantidade] = useState(doacaoEdicao ? String(doacaoEdicao.quantidade) : '');
   const [pontoDestino, setPontoDestino] = useState(doacaoEdicao?.pontoDestino ?? '');
   const [erros, setErros] = useState({});
+  const [erroApi, setErroApi] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+
+  const [pontos, setPontos] = useState([]);
+  const [carregandoPontos, setCarregandoPontos] = useState(true);
+  const [erroPontos, setErroPontos] = useState(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: doacaoEdicao ? 'Editar doação' : 'Registrar doação' });
   }, [navigation, doacaoEdicao]);
+
+  const carregarPontos = useCallback(async () => {
+    setCarregandoPontos(true);
+    setErroPontos(null);
+    try {
+      setPontos(await listarPontos());
+    } catch (e) {
+      setErroPontos(mensagemDeErro(e));
+    } finally {
+      setCarregandoPontos(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarPontos();
+  }, [carregarPontos]);
 
   function validar() {
     const e = {};
@@ -28,13 +50,21 @@ export default function CadastroScreen({ route, navigation }) {
 
   async function salvar() {
     if (!validar()) return;
+    setEnviando(true);
+    setErroApi(null);
     const dados = { tipoItem: tipoItem.trim(), quantidade: Number(quantidade), pontoDestino };
-    if (doacaoEdicao) {
-      await atualizarDoacao({ ...doacaoEdicao, ...dados });
-      navigation.pop(2); // fecha edição e detalhe, volta ao histórico
-    } else {
-      await salvarDoacao(dados);
-      navigation.replace('Historico');
+    try {
+      if (doacaoEdicao) {
+        await editar(doacaoEdicao.id, dados);
+        navigation.goBack(); // volta ao detalhe, que busca os valores novos
+      } else {
+        await cadastrar(dados);
+        navigation.replace('Historico');
+      }
+    } catch (e) {
+      // mantém o que foi digitado e avisa, sem fingir que deu certo
+      setErroApi(mensagemDeErro(e));
+      setEnviando(false);
     }
   }
 
@@ -46,23 +76,41 @@ export default function CadastroScreen({ route, navigation }) {
         {erros.tipoItem && <Text style={s.erro}>{erros.tipoItem}</Text>}
 
         <Text style={s.label}>Quantidade</Text>
-        <TextInput style={s.input} value={quantidade} onChangeText={setQuantidade}
-                   keyboardType="numeric" placeholder="Ex.: 5" />
+        <TextInput style={s.input} value={quantidade} onChangeText={setQuantidade} keyboardType="numeric" placeholder="Ex.: 5" />
         {erros.quantidade && <Text style={s.erro}>{erros.quantidade}</Text>}
 
         <Text style={s.label}>Ponto de destino</Text>
-        <View>
-          {PONTOS.map((p) => (
-            <TouchableOpacity key={p} style={[s.opcao, pontoDestino === p && s.opcaoAtiva]}
-                              onPress={() => setPontoDestino(p)}>
-              <Text style={pontoDestino === p && { color: '#fff' }}>{p}</Text>
+        {pontoDestino ? <Text style={s.selecionado}>Selecionado: {pontoDestino}</Text> : null}
+        {carregandoPontos && (
+          <View style={s.linhaCentro}>
+            <ActivityIndicator />
+            <Text style={s.msg}>Carregando pontos...</Text>
+          </View>
+        )}
+        {erroPontos && (
+          <View>
+            <Text style={s.erro}>{erroPontos}</Text>
+            <TouchableOpacity style={s.botaoSec} onPress={carregarPontos}>
+              <Text>Tentar carregar os pontos de novo</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        )}
+        {pontos.map((p) => (
+          <TouchableOpacity
+            key={p.id}
+            style={[s.opcao, pontoDestino === p.nome && s.opcaoAtiva]}
+            onPress={() => setPontoDestino(p.nome)}
+          >
+            <Text style={[{ fontWeight: 'bold' }, pontoDestino === p.nome && { color: '#fff' }]}>{p.nome}</Text>
+            <Text style={pontoDestino === p.nome && { color: '#fff' }}>{p.bairro}</Text>
+          </TouchableOpacity>
+        ))}
         {erros.pontoDestino && <Text style={s.erro}>{erros.pontoDestino}</Text>}
 
-        <TouchableOpacity style={s.botao} onPress={salvar}>
-          <Text style={s.botaoTexto}>Salvar</Text>
+        {erroApi && <Text style={s.erroApi}>{erroApi}</Text>}
+
+        <TouchableOpacity style={[s.botao, enviando && { opacity: 0.6 }]} onPress={salvar} disabled={enviando}>
+          <Text style={s.botaoTexto}>{doacaoEdicao ? 'Salvar alterações' : 'Registrar doação'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.botaoSec} onPress={() => navigation.goBack()}>
           <Text>Cancelar</Text>
@@ -77,6 +125,10 @@ const s = StyleSheet.create({
   label: { fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, minHeight: 44 },
   erro: { color: '#c62828', marginTop: 4 },
+  erroApi: { color: '#c62828', marginTop: 16, fontWeight: 'bold' },
+  selecionado: { marginBottom: 8, fontStyle: 'italic' },
+  linhaCentro: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  msg: { marginLeft: 8 },
   opcao: { minHeight: 44, justifyContent: 'center', padding: 10, borderWidth: 1, borderRadius: 8, marginBottom: 8 },
   opcaoAtiva: { backgroundColor: '#2e7d32' },
   botao: { minHeight: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#2e7d32', borderRadius: 8, marginTop: 20 },
